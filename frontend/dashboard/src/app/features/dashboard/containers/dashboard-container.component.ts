@@ -1,7 +1,9 @@
-import { Component, OnInit, signal, computed, effect } from '@angular/core';
+import { Component, OnInit, signal, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
+import { catchError, throwError } from 'rxjs';
 import { DashboardComponent } from '../components/dashboard.component';
+import { MockDataService } from '../../../core/services/mock-data.service';
 
 export interface DashboardMetrics {
   totalTransactions: number;
@@ -34,7 +36,10 @@ export class DashboardContainerComponent implements OnInit {
   });
   loading = signal(true);
 
-  constructor(private http: HttpClient) {
+  constructor(
+    private http: HttpClient,
+    private mockDataService: MockDataService
+  ) {
     // Effect to handle metrics loading
     effect(() => {
       if (this.metrics()) {
@@ -50,6 +55,14 @@ export class DashboardContainerComponent implements OnInit {
   private loadMetrics(): void {
     this.http
       .get<DashboardMetrics>('/api/dashboard/metrics')
+      .pipe(
+        catchError(error => {
+          if (error.status === 404 || error.status === 0) {
+            return this.mockDataService.getDashboardMetrics();
+          }
+          return throwError(() => error);
+        })
+      )
       .subscribe({
         next: metrics => {
           this.metrics.set(metrics);

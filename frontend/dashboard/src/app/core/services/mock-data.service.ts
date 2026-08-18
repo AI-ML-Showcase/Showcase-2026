@@ -12,7 +12,7 @@ export interface User {
   id: string;
   email: string;
   name: string;
-  role: string;
+  role: 'admin' | 'engineer' | 'analyst';
   permissions: string[];
 }
 
@@ -38,7 +38,7 @@ export class MockDataService {
     id: '1',
     email: 'demo@company.com',
     name: 'Demo User',
-    role: 'Admin',
+    role: 'admin',
     permissions: ['read', 'write', 'delete'],
   };
 

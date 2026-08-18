@@ -2,6 +2,7 @@ import { Injectable, signal, computed, effect } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, throwError } from 'rxjs';
 import { tap, catchError } from 'rxjs/operators';
+import { MockDataService } from './mock-data.service';
 
 export interface User {
   id: string;
@@ -33,7 +34,10 @@ export class AuthService {
     computed(() => this.currentUser()?.permissions.includes(permission) ?? false);
 
   // Effects
-  constructor(private http: HttpClient) {
+  constructor(
+    private http: HttpClient,
+    private mockDataService: MockDataService
+  ) {
     effect(() => {
       if (this.authToken()) {
         this.saveTokenToStorage(this.authToken()!);
@@ -54,6 +58,16 @@ export class AuthService {
         this.loading.set(false);
       }),
       catchError(err => {
+        if (err.status === 404 || err.status === 0) {
+          return this.mockDataService.login(email, password).pipe(
+            tap(token => {
+              this.authToken.set(token);
+              this.fetchCurrentUser();
+              this.loading.set(false);
+            })
+          );
+        }
+
         this.error.set('Login failed. Please check your credentials.');
         this.loading.set(false);
         return throwError(() => err);
@@ -73,7 +87,13 @@ export class AuthService {
 
     return this.http.post<AuthToken>('/api/auth/refresh', {}).pipe(
       tap(token => this.authToken.set(token)),
-      catchError(() => {
+      catchError(err => {
+        if (err.status === 404 || err.status === 0) {
+          return this.mockDataService.refreshToken('demo-refresh').pipe(
+            tap(token => this.authToken.set(token))
+          );
+        }
+
         this.logout();
         return throwError(() => new Error('Token refresh failed'));
       })
@@ -81,10 +101,20 @@ export class AuthService {
   }
 
   private fetchCurrentUser(): void {
-    this.http.get<User>('/api/auth/me').subscribe(
-      user => this.currentUser.set(user),
-      () => this.logout()
-    );
+    this.http
+      .get<User>('/api/auth/me')
+      .pipe(
+        catchError(err => {
+          if (err.status === 404 || err.status === 0) {
+            return this.mockDataService.getCurrentUser();
+          }
+          return throwError(() => err);
+        })
+      )
+      .subscribe(
+        user => this.currentUser.set(user),
+        () => this.logout()
+      );
   }
 
   getToken(): string | null {
